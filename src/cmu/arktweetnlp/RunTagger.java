@@ -9,6 +9,7 @@ import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Arrays;
 
 import cmu.arktweetnlp.impl.ModelSentence;
 import cmu.arktweetnlp.impl.Sentence;
@@ -22,17 +23,17 @@ import edu.stanford.nlp.util.StringUtils;
 /**
  * Commandline interface to run the Twitter POS tagger with a variety of possible input and output formats.
  * Also does basic evaluation if given labeled input text.
- * 
+ *
  * For basic usage of the tagger from Java, see instead Tagger.java.
  */
 public class RunTagger {
 	Tagger tagger;
-	
+
 	// Commandline I/O-ish options
 	String inputFormat = "auto";
 	String outputFormat = "auto";
 	int inputField = 1;
-	
+
 	String inputFilename;
 	String outputFilename;
 	/** Can be either filename or resource name **/
@@ -40,14 +41,14 @@ public class RunTagger {
 
 	public boolean noOutput = false;
 	public boolean justTokenize = false;
-	
+
 	public static enum Decoder { GREEDY, VITERBI };
-	public Decoder decoder = Decoder.GREEDY; 
+	public Decoder decoder = Decoder.GREEDY;
 	public boolean showConfidence = true;
 
 	PrintStream outputStream;
 	Iterable<Sentence> inputIterable = null;
-	
+
 	// Evaluation stuff
 	private static HashSet<String> _wordsInCluster;
 	// Only for evaluation mode (conll inputs)
@@ -57,7 +58,7 @@ public class RunTagger {
 	int oovTokens = 0;
 	int clusterTokensCorrect = 0;
 	int clusterTokens = 0;
-	
+
 	public static void die(String message) {
 		// (BTO) I like "assert false" but assertions are disabled by default in java
 		System.err.println(message);
@@ -77,21 +78,21 @@ public class RunTagger {
 			inputFormat = "text";
 		}
 	}
-	
+
 	public void runTagger() throws IOException, ClassNotFoundException {
-		
+
 		tagger = new Tagger();
 		if (!justTokenize) {
-			tagger.loadModel(modelFilename);			
+			tagger.loadModel(modelFilename);
 		}
-		
+
 		if (inputFormat.equals("conll")) {
 			runTaggerInEvalMode();
 			return;
-		} 
+		}
 
 		JsonTweetReader jsonTweetReader = new JsonTweetReader();
-		
+
 		LineNumberReader reader = new LineNumberReader(BasicFileIO.openFileToReadUTF8(inputFilename));
 		String line;
 		long currenttime = System.currentTimeMillis();
@@ -99,13 +100,13 @@ public class RunTagger {
 		while ( (line = reader.readLine()) != null) {
 			String[] parts = line.split("\t");
 			String tweetData = parts[inputField-1];
-			
+
 			if (reader.getLineNumber()==1) {
 				if (inputFormat.equals("auto")) {
 					detectAndSetInputFormat(tweetData);
 				}
 			}
-			
+
 			String text;
 			if (inputFormat.equals("json")) {
 				text = jsonTweetReader.getText(tweetData);
@@ -116,10 +117,17 @@ public class RunTagger {
 			} else {
 				text = tweetData;
 			}
-			
+
 			Sentence sentence = new Sentence();
-			
-			sentence.tokens = Twokenize.tokenizeRawTweetText(text);
+
+			// HACK: do not tokenize using Twokenize.
+			// sentence.tokens = Twokenize.tokenizeRawTweetText(text);
+			// Our data comes in tokenized (separated as spaces).
+
+			String[] textToks = text.split(" ");
+			List<String> toks = Arrays.asList(textToks);
+			sentence.tokens = toks;
+
 			ModelSentence modelSentence = null;
 
 			if (sentence.T() > 0 && !justTokenize) {
@@ -127,17 +135,17 @@ public class RunTagger {
 				tagger.featureExtractor.computeFeatures(sentence, modelSentence);
 				goDecode(modelSentence);
 			}
-				
+
 			if (outputFormat.equals("conll")) {
 				outputJustTagging(sentence, modelSentence);
 			} else {
-				outputPrependedTagging(sentence, modelSentence, justTokenize, line);				
+				outputPrependedTagging(sentence, modelSentence, justTokenize, line);
 			}
 			numtoks += sentence.T();
 		}
 		long finishtime = System.currentTimeMillis();
 		System.err.printf("Tokenized%s %d tweets (%d tokens) in %.1f seconds: %.1f tweets/sec, %.1f tokens/sec\n",
-				justTokenize ? "" : " and tagged", 
+				justTokenize ? "" : " and tagged",
 				reader.getLineNumber(), numtoks, (finishtime-currenttime)/1000.0,
 				reader.getLineNumber() / ((finishtime-currenttime)/1000.0),
 				numtoks / ((finishtime-currenttime)/1000.0)
@@ -152,35 +160,35 @@ public class RunTagger {
 		} else if (decoder == Decoder.VITERBI) {
 //			if (showConfidence) throw new RuntimeException("--confidence only works with greedy decoder right now, sorry, yes this is a lame limitation");
 			tagger.model.viterbiDecode(mSent);
-		}		
+		}
 	}
-	
+
 	public void runTaggerInEvalMode() throws IOException, ClassNotFoundException {
-		
+
 		long t0 = System.currentTimeMillis();
 		int n=0;
 
-		List<Sentence> examples = CoNLLReader.readFile(inputFilename); 
+		List<Sentence> examples = CoNLLReader.readFile(inputFilename);
 		inputIterable = examples;
 
 		int[][] confusion = new int[tagger.model.numLabels][tagger.model.numLabels];
-		
+
 		for (Sentence sentence : examples) {
 			n++;
-			
+
 			ModelSentence mSent = new ModelSentence(sentence.T());
 			tagger.featureExtractor.computeFeatures(sentence, mSent);
 			goDecode(mSent);
-			
+
 			if ( ! noOutput) {
-				outputJustTagging(sentence, mSent);	
+				outputJustTagging(sentence, mSent);
 			}
 			evaluateSentenceTagging(sentence, mSent);
 			//evaluateOOV(sentence, mSent);
 			//getconfusion(sentence, mSent, confusion);
 		}
 
-		System.err.printf("%d / %d correct = %.4f acc, %.4f err\n", 
+		System.err.printf("%d / %d correct = %.4f acc, %.4f err\n",
 				numTokensCorrect, numTokens,
 				numTokensCorrect*1.0 / numTokens,
 				1 - (numTokensCorrect*1.0 / numTokens)
@@ -188,8 +196,8 @@ public class RunTagger {
 		double elapsed = ((double) (System.currentTimeMillis() - t0)) / 1000.0;
 		System.err.printf("%d tweets in %.1f seconds, %.1f tweets/sec\n",
 				n, elapsed, n*1.0/elapsed);
-		
-/*		System.err.printf("%d / %d cluster words correct = %.4f acc, %.4f err\n", 
+
+/*		System.err.printf("%d / %d cluster words correct = %.4f acc, %.4f err\n",
 				oovTokensCorrect, oovTokens,
 				oovTokensCorrect*1.0 / oovTokens,
 				1 - (oovTokensCorrect*1.0 / oovTokens)
@@ -201,7 +209,7 @@ public class RunTagger {
 			i++;
 		}		*/
 	}
-	
+
 	private void evaluateOOV(Sentence lSent, ModelSentence mSent) throws FileNotFoundException, IOException, ClassNotFoundException {
 		for (int t=0; t < mSent.T; t++) {
 			int trueLabel = tagger.model.labelVocab.num(lSent.labels.get(t));
@@ -219,8 +227,8 @@ public class RunTagger {
 			if(trueLabel!=-1)
 				confusion[trueLabel][predLabel]++;
 		}
-		
-		
+
+
     }
 	public void evaluateSentenceTagging(Sentence lSent, ModelSentence mSent) {
 		for (int t=0; t < mSent.T; t++) {
@@ -230,7 +238,7 @@ public class RunTagger {
 			numTokens += 1;
 		}
 	}
-	
+
 	private String formatConfidence(double confidence) {
 		// too many decimal places wastes space
 		return String.format("%.4f", confidence);
@@ -244,8 +252,8 @@ public class RunTagger {
 
 		if (outputFormat.equals("conll")) {
 			for (int t=0; t < lSent.T(); t++) {
-				outputStream.printf("%s\t%s", 
-						lSent.tokens.get(t),  
+				outputStream.printf("%s\t%s",
+						lSent.tokens.get(t),
 						tagger.model.labelVocab.name(mSent.labels[t]));
 				if (mSent.confidences != null) {
 					outputStream.printf("\t%s", formatConfidence(mSent.confidences[t]));
@@ -253,22 +261,22 @@ public class RunTagger {
 				outputStream.printf("\n");
 			}
 			outputStream.println("");
-		} 
+		}
 		else {
 			die("bad output format for just tagging: " + outputFormat);
 		}
 	}
 	/**
 	 * assume mSent's labels hold the tagging.
-	 * 
+	 *
 	 * @param lSent
 	 * @param mSent
 	 * @param inputLine -- assume does NOT have trailing newline.  (default from java's readLine)
 	 */
-	public void outputPrependedTagging(Sentence lSent, ModelSentence mSent, 
+	public void outputPrependedTagging(Sentence lSent, ModelSentence mSent,
 			boolean suppressTags, String inputLine) {
 		// mSent might be null!
-		
+
 		int T = lSent.T();
 		String[] tokens = new String[T];
 		String[] tags = new String[T];
@@ -276,13 +284,13 @@ public class RunTagger {
 		for (int t=0; t < T; t++) {
 			tokens[t] = lSent.tokens.get(t);
 			if (!suppressTags) {
-				tags[t] = tagger.model.labelVocab.name(mSent.labels[t]);	
+				tags[t] = tagger.model.labelVocab.name(mSent.labels[t]);
 			}
 			if (showConfidence) {
 				confs[t] = formatConfidence(mSent.confidences[t]);
 			}
 		}
-		
+
 		StringBuilder sb = new StringBuilder();
 		sb.append(StringUtils.join(tokens));
 		sb.append("\t");
@@ -295,7 +303,7 @@ public class RunTagger {
 			sb.append("\t");
 		}
 		sb.append(inputLine);
-		
+
 		outputStream.println(sb.toString());
 	}
 
@@ -303,7 +311,7 @@ public class RunTagger {
 	///////////////////////////////////////////////////////////////////
 
 
-	public static void main(String[] args) throws IOException, ClassNotFoundException {        
+	public static void main(String[] args) throws IOException, ClassNotFoundException {
 		if (args.length > 0 && (args[0].equals("-h") || args[0].equals("--help"))) {
 			usage();
 		}
@@ -353,13 +361,13 @@ public class RunTagger {
 			} else if (args[i].equals("--no-confidence")) {
 				tagger.showConfidence = false;
 				i += 1;
-			}	
+			}
 			else {
 				System.out.println("bad option " + args[i]);
-				usage();                
+				usage();
 			}
 		}
-		
+
 		if (args.length - i > 1) usage();
 		if (args.length == i || args[i].equals("-")) {
 			System.err.println("Listening on stdin for input.  (-h for help)");
@@ -367,12 +375,12 @@ public class RunTagger {
 		} else {
 			tagger.inputFilename = args[i];
 		}
-		
+
 		tagger.finalizeOptions();
-		
-		tagger.runTagger();		
+
+		tagger.runTagger();
 	}
-	
+
 	public void finalizeOptions() throws IOException {
 		if (outputFormat.equals("auto")) {
 			if (inputFormat.equals("conll")) {
@@ -389,7 +397,7 @@ public class RunTagger {
 			showConfidence = false;
 		}
 	}
-	
+
 	public static void usage() {
 		usage(null);
 	}
@@ -433,7 +441,7 @@ public class RunTagger {
 "\nThe tokenization and tags are parallel space-separated lists." +
 "\nThe 'conll' format is token-per-line, blank spaces separating tweets."+
 "\n");
-		
+
 		if (extra != null) {
 			System.out.println("ERROR: " + extra);
 		}

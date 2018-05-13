@@ -14,7 +14,7 @@ import org.apache.commons.lang.StringEscapeUtils;
 /**
  * Twokenize -- a tokenizer designed for Twitter text in English and some other European languages.
  * This is the Java version. If you want the old Python version, see: http://github.com/brendano/tweetmotif
- * 
+ *
  * This tokenizer code has gone through a long history:
  *
  * (1) Brendan O'Connor wrote original version in Python, http://github.com/brendano/tweetmotif
@@ -24,9 +24,9 @@ import org.apache.commons.lang.StringEscapeUtils;
  * (2a) Kevin Gimpel and Daniel Mills modified it for POS tagging for the CMU ARK Twitter POS Tagger
  * (2b) Jason Baldridge and David Snyder ported it to Scala
  * (3) Brendan bugfixed the Scala port and merged with POS-specific changes
- *     for the CMU ARK Twitter POS Tagger  
+ *     for the CMU ARK Twitter POS Tagger
  * (4) Tobi Owoputi ported it back to Java and added many improvements (2012-06)
- * 
+ *
  * Current home is http://github.com/brendano/ark-tweet-nlp and http://www.ark.cs.cmu.edu/TweetNLP
  *
  * There have been at least 2 other Java ports, but they are not in the lineage for the code here.
@@ -35,7 +35,7 @@ public class Twokenize {
     static Pattern Contractions = Pattern.compile("(?i)(\\w+)(n['’′]t|['’′]ve|['’′]ll|['’′]d|['’′]re|['’′]s|['’′]m)$");
     static Pattern Whitespace = Pattern.compile("[\\s\\p{Zs}]+");
 
-    static String punctChars = "['\"“”‘’.?!…,:;]"; 
+    static String punctChars = "['\"“”‘’.?!…,:;]";
     //static String punctSeq   = punctChars+"+";	//'anthem'. => ' anthem '.
     static String punctSeq   = "['\"“”‘’]+|[.?!,…]+|[:;]+";	//'anthem'. => ' anthem ' .
     static String entity     = "&(?:amp|lt|gt|quot);";
@@ -78,7 +78,7 @@ public class Twokenize {
     static String decorations = "(?:[♫♪]+|[★☆]+|[♥❤♡]+|[\\u2639-\\u263b]+|[\\ue001-\\uebbb]+)";
     static String thingsThatSplitWords = "[^\\s\\.,?\"]";
     static String embeddedApostrophe = thingsThatSplitWords+"+['’′]" + thingsThatSplitWords + "*";
-    
+
     public static String OR(String... parts) {
         String prefix="(?:";
         StringBuilder sb = new StringBuilder();
@@ -90,7 +90,7 @@ public class Twokenize {
         sb.append(")");
         return sb.toString();
     }
-    
+
     //  Emoticons
     static String normalEyes = "(?iu)[:=]"; // 8 and x are eyes but cause problems
     static String wink = "[;]";
@@ -117,10 +117,10 @@ public class Twokenize {
     static String eeSymbol = "[^A-Za-z0-9\\s\\(\\)\\*:=-]";
     static String eastEmote = eeLeft + "(?:"+basicface+"|" +eeSymbol+")+" + eeRight;
 
-    
+
     public static String emoticon = OR(
             // Standard version  :) :( :] :D :P
-    		"(?:>|&gt;)?" + OR(normalEyes, wink) + OR(noseArea,"[Oo]") + 
+    		"(?:>|&gt;)?" + OR(normalEyes, wink) + OR(noseArea,"[Oo]") +
             	OR(tongue+"(?=\\W|$|RT|rt|Rt)", otherMouths+"(?=\\W|$|RT|rt|Rt)", sadMouths, happyMouths),
 
             // reversed version (: D:  use positive lookbehind to remove "(word):"
@@ -129,7 +129,7 @@ public class Twokenize {
 
             //inspired by http://en.wikipedia.org/wiki/User:Scapler/emoticons#East_Asian_style
             eastEmote.replaceFirst("2", "1"), basicface
-            // iOS 'emoji' characters (some smileys, some symbols) [\ue001-\uebbb]  
+            // iOS 'emoji' characters (some smileys, some symbols) [\ue001-\uebbb]
             // TODO should try a big precompiled lexicon from Wikipedia, Dan Ramage told me (BTO) he does this
     );
 
@@ -142,14 +142,14 @@ public class Twokenize {
     // "hello (#hashtag)" ==> "hello ( #hashtag )"  RIGHT
     // "hello (@person)" ==> "hello (@person )"  WRONG
     // "hello (@person)" ==> "hello ( @person )"  RIGHT
-    // ... Some sort of weird interaction with edgepunct I guess, because edgepunct 
+    // ... Some sort of weird interaction with edgepunct I guess, because edgepunct
     // has poor content-symbol detection.
 
     // This also gets #1 #40 which probably aren't hashtags .. but good as tokens.
     // If you want good hashtag identification, use a different regex.
     static String Hashtag = "#[a-zA-Z0-9_]+";  //optional: lookbehind for \b
     //optional: lookbehind for \b, max length 15
-    static String AtMention = "[@＠][a-zA-Z0-9_]+"; 
+    static String AtMention = "[@＠][a-zA-Z0-9_]+";
 
     // I was worried this would conflict with at-mentions
     // but seems ok in sample of 5800: 7 changes all email fixes
@@ -176,7 +176,7 @@ public class Twokenize {
                     separators,
                     decorations,
                     embeddedApostrophe,
-                    Hashtag,  
+                    Hashtag,
                     AtMention
             ));
 
@@ -185,7 +185,7 @@ public class Twokenize {
     // While also:   don't => don't
     // the first is considered "edge punctuation".
     // the second is word-internal punctuation -- don't want to mess with it.
-    // BTO (2011-06): the edgepunct system seems to be the #1 source of problems these days.  
+    // BTO (2011-06): the edgepunct system seems to be the #1 source of problems these days.
     // I remember it causing lots of trouble in the past as well.  Would be good to revisit or eliminate.
 
     // Note the 'smart quotes' (http://en.wikipedia.org/wiki/Smart_quotes)
@@ -203,7 +203,7 @@ public class Twokenize {
         input = m1.replaceAll("$1 $2$3");
         return input;
     }
-    
+
     private static class Pair<T1, T2> {
         public T1 first;
         public T2 second;
@@ -217,7 +217,7 @@ public class Twokenize {
         String splitPunctText = splitEdgePunct(text);
 
         int textLength = splitPunctText.length();
-        
+
         // BTO: the logic here got quite convoluted via the Scala porting detour
         // It would be good to switch back to a nice simple procedural style like in the Python version
         // ... Scala is such a pain.  Never again.
@@ -225,7 +225,7 @@ public class Twokenize {
         // Find the matches for subsequences that should be protected,
         // e.g. URLs, 1.0, U.N.K.L.E., 12:53
         Matcher matches = Protected.matcher(splitPunctText);
-        //Storing as List[List[String]] to make zip easier later on 
+        //Storing as List[List[String]] to make zip easier later on
         List<List<String>> bads = new ArrayList<List<String>>();	//linked list?
         List<Pair<Integer,Integer>> badSpans = new ArrayList<Pair<Integer,Integer>>();
         while(matches.find()){
@@ -239,9 +239,9 @@ public class Twokenize {
         }
 
         // Create a list of indices to create the "goods", which can be
-        // split. We are taking "bad" spans like 
-        //     List((2,5), (8,10)) 
-        // to create 
+        // split. We are taking "bad" spans like
+        //     List((2,5), (8,10))
+        // to create
         ///    List(0, 2, 5, 8, 10, 12)
         // where, e.g., "12" here would be the textLength
         // has an even length and no indices are the same
@@ -270,16 +270,16 @@ public class Twokenize {
             zippedStr = addAllnonempty(zippedStr,bads.get(i));
         }
         zippedStr = addAllnonempty(zippedStr,splitGoods.get(i));
-        
+
         // BTO: our POS tagger wants "ur" and "you're" to both be one token.
         // Uncomment to get "you 're"
-        /*ArrayList<String> splitStr = new ArrayList<String>(zippedStr.size());
+        ArrayList<String> splitStr = new ArrayList<String>(zippedStr.size());
         for(String tok:zippedStr)
         	splitStr.addAll(splitToken(tok));
-        zippedStr=splitStr;*/
-        
+        zippedStr=splitStr;
+
         return zippedStr;
-    }  
+    }
 
     private static List<String> addAllnonempty(List<String> master, List<String> smaller){
         for (String s : smaller){
@@ -324,7 +324,7 @@ public class Twokenize {
 
     /**
      * This is intended for raw tweet text -- we do some HTML entity unescaping before running the tagger.
-     * 
+     *
      * This function normalizes the input text BEFORE calling the tokenizer.
      * So the tokens you get back may not exactly correspond to
      * substrings of the original text.
@@ -350,5 +350,5 @@ public class Twokenize {
     		output.print("\n");
     	}
     }
-    
+
 }
